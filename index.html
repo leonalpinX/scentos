@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#152b2c"><meta name="description" content="ScentOS Beta 1.0, lokale Datengrundlage für Duftkatalog und persönliche Profile">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css"><title>ScentOS | Fragrance Intelligence</title></head>
+<body>
+<header class="hero"><div class="hero-inner"><div class="brand"><span class="logo" aria-hidden="true">S</span><div><div class="eyebrow">FRAGRANCE INTELLIGENCE</div><h1>ScentOS</h1></div></div>
+<p>Deine Düfte. Dein Profil. Deine Entscheidung.</p><div class="version">BETA 1.0 · TESTVERSION · LOKALE DATEN</div></div></header>
+<main class="shell"><section class="toolbar"><label for="active-profile">Aktives Profil</label><select id="active-profile" aria-label="Aktives Profil"></select><span class="local-note">🔒 Daten bleiben in diesem Browser</span></section>
+<nav class="tabs" aria-label="ScentOS Bereiche"><button data-tab="catalog" class="active">Duftkatalog</button><button data-tab="collection">Meine Sammlung</button><button data-tab="tests">Dufttests</button><button data-tab="profile">Profil & Approver</button><button data-tab="backup">Daten sichern</button></nav>
+<div id="messages" role="status" aria-live="polite"></div>
+<section id="view" tabindex="-1"></section>
+<footer class="footer"><p><strong>Entwicklungsstand:</strong> Hier funktionieren lokale Katalogpflege, Profile, Sammlung, Tests, Approval-Erfassung und Datensicherung. Empfehlungen, Wetter und Kalender sind noch nicht implementiert. Es gibt keine geräteübergreifende Synchronisierung.</p></footer>
+</main><script type="module" src="app.js"></script></body></html>
