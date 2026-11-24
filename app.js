@@ -1,8 +1,12 @@
 import {dbOpen,getAll,get,put,remove,readState,seedIfEmpty,safeImport} from './db.js';
 import {approvalLabel,associationKey,validateFragrance,validateProfile,newId,COLLECTION_STATES,DEFAULT_PROFILE_ID,today,VERSION} from './model.js';
+import {recommend,OCCASION_OPTIONS} from './recommendation.js';
+import {weatherAt} from './weather.js';
 const $=s=>document.querySelector(s);
 const view=$('#view'), messages=$('#messages'), profileSelector=$('#active-profile');
-let activeProfileId=DEFAULT_PROFILE_ID,tab='catalog',editCatalogId=null,editTestId=null,cache=null;
+let activeProfileId=DEFAULT_PROFILE_ID,tab='recommend',editCatalogId=null,editTestId=null,cache=null;
+let recommendationContext={occasion:'kein_anlass',customOccasion:'',city:'Kerpen',weatherMode:'auto',manualTemperature:'',when:'',includeOrdered:false,approvedOnly:false};
+let recommendationResults=null,recommendationWeather=null,recommendationMessage='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const words=s=>String(s??'').split(',').map(x=>x.trim()).filter(Boolean);
 const opt=(value,text,selected=false)=>`<option value="${esc(value)}" ${selected?'selected':''}>${esc(text)}</option>`;
@@ -19,7 +23,36 @@ function field(title,name,value='',options={}){
 function dropdown(name,values,selected){return `<select name="${name}">${values.map(x=>opt(x[0],x[1],String(x[0])===String(selected))).join('')}</select>`;}
 function panel(title,subtitle,content){return `<section class="panel"><h2>${esc(title)}</h2><p class="muted">${esc(subtitle)}</p>${content}</section>`;}
 async function refresh(){const names=['catalog','profiles','collections','approvals','tests','wearLogs','settings'];cache=Object.fromEntries(await Promise.all(names.map(async n=>[n,await getAll(n)])));if(!cache.profiles.find(x=>x.id===activeProfileId))activeProfileId=cache.profiles[0]?.id||null;profileSelector.innerHTML=cache.profiles.map(x=>opt(x.id,x.name,x.id===activeProfileId)).join('');view.innerHTML=render();}
-function render(){switch(tab){case 'catalog':return catalogView();case 'collection':return collectionView();case 'profile':return profileView();case 'tests':return testsView();case 'backup':return backupView();}}
+function render(){switch(tab){case 'recommend':return recommendationView();case 'catalog':return catalogView();case 'collection':return collectionView();case 'profile':return profileView();case 'tests':return testsView();case 'backup':return backupView();}}
+function recField(label,name,value='',extra={}){return field(label,name,value,extra);}
+function recommendationView(){
+ const p=current();if(!p)return panel('Meine Duftempfehlung','',`<div class="empty">Lege zuerst ein Profil an.</div>`);
+ const c=recommendationContext;
+ const weatherText=recommendationWeather?`<div class="notice"><strong>${esc(recommendationWeather.city)}</strong> · ${esc(recommendationWeather.temperature)} °C (gefühlt ${esc(recommendationWeather.feelsLike??'–')} °C) · Feuchte: ${esc(recommendationWeather.humidity??'–')} % · ${recommendationWeather.forecast?'Regenrisiko':'Niederschlag'}: ${esc(recommendationWeather.precipitation??'–')} ${recommendationWeather.forecast?'%':'mm'} · ${recommendationWeather.forecast?'Prognose':'aktuelle Messwerte'} von <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>.</div>`:'';
+ const contextText=recommendationMessage?`<div class="notice">${esc(recommendationMessage)}</div>`:'';
+ const filters=`<div class="rec-checks"><label><input name="includeOrdered" type="checkbox" ${c.includeOrdered?'checked':''}> Auch bestellte Proben berücksichtigen</label><label><input name="approvedOnly" type="checkbox" ${c.approvedOnly?'checked':''} ${p.approver?.mode==='none'?'disabled':''}> Nur ${esc(approvalLabel(p)||'freigegebene')} Düfte</label></div>`;
+ const form=`<form id="recommend-form" class="stack"><div class="form-grid"><label class="field"><span>Anlass</span>${dropdown('occasion',OCCASION_OPTIONS,c.occasion)}</label>
+ ${recField('Eigener Anlass (überschreibt die Auswahl)','customOccasion',c.customOccasion,{placeholder:'z. B. Galerie, Weinprobe'})}
+ ${recField('Ort für Wetter (ohne GPS)','city',c.city,{placeholder:'z. B. Kerpen'})}
+ <label class="field"><span>Wetterbezug</span>${dropdown('weatherMode',[['auto','Automatisch über Open-Meteo'],['manual','Temperatur manuell eingeben'],['none','Wetter nicht berücksichtigen']],c.weatherMode)}</label>
+ ${recField('Temperatur in °C (manuell / Ausweichwert)','manualTemperature',c.manualTemperature,{type:'number',min:-60,max:60,placeholder:'Optional, z. B. 10'})}
+ ${recField('Geplanter Zeitpunkt (optional)','when',c.when,{type:'datetime-local'})}</div>
+ ${filters}<button class="primary action" type="submit">Meine Top 3 berechnen</button></form>`;
+ let resultHtml='';
+ if(recommendationResults){
+  resultHtml=`<h3 class="rec-heading">Deine Vorschläge</h3><p class="subtle">Vorläufige, erklärbare Heuristik statt objektiver Duftwahrheit. Fehlende Werte zählen neutral. Profilmerkmale wirken maximal zu 5 % mit. Kein Kalenderzugriff erforderlich.</p>`;
+  if(!recommendationResults.length)resultHtml+='<div class="empty">Für diesen Filter keine geeigneten Düfte in deiner Sammlung. Prüfe den Besitzstatus oder den Approval-Filter.</div>';
+  else resultHtml+=`<div class="item-list">${recommendationResults.map((r,i)=>{
+   const f=r.fragrance;const factorNames={occasion:'Anlass',weather:'Wetter',time:'Tageszeit',rating:'Deine Bewertung',season:'Jahreszeit',profile:'Persönliche Eigenschaften'};
+   const parts=Object.entries(r.breakdown).map(([k,v])=>`<li><strong>${esc(factorNames[k])}</strong> (${Math.round(v.weight*10)/10} %): ${esc(v.details)}${v.value===.5?' · neutral':''}</li>`).join('');
+   const approval=r.approval===true?'<span class="pill">Freigegeben</span>':r.approval===false?'<span class="pill secondary-pill">Abgelehnt</span>':'<span class="pill secondary-pill">Freigabe offen</span>';
+   return `<article class="item rec-result"><div class="row"><div><span class="brandname">#${i+1} · ${esc(f.brand)}</span><h3>${esc(f.name)} <small>${esc(f.concentration||'')}</small></h3></div><div class="rec-score" aria-label="Heuristikwert ${r.score} von 100">${r.score.toLocaleString('de-DE',{maximumFractionDigits:1})}<span>/100</span></div></div><div class="row"><span class="pill">${esc(r.status==='vorhanden'?'In deiner Sammlung':'Bestellte Probe')}</span>${p.approver?.mode==='none'?'':approval}</div><p>${esc(r.reason)}</p><details><summary>Warum dieser Duft?</summary><ul class="rec-factors">${parts}</ul></details></article>`;
+  }).join('')}</div>`;
+ }
+ return panel('Meine Duftempfehlung',`Top 3 für ${p.name}. Nur vorhandene Düfte, sofern du bestellte Proben nicht einschließt.`,
+ `<div class="notice">Deine Daten und Bewertungen bleiben lokal. Für automatisches Wetter wird nur der eingegebene Ort an Open-Meteo übermittelt. Keine GPS-Abfrage.</div>${form}${weatherText}${contextText}${resultHtml}`);
+}
+
 function catalogView(){
  const f=cache.catalog.find(x=>x.id===editCatalogId)||{};
  const form=`<form id="catalog-form" class="stack"><div class="form-grid">
@@ -66,6 +99,35 @@ function getSubmittedProfile(form,existing={}){return validateProfile({
  approver:{mode:inputVal(form,'approverMode'),name:inputVal(form,'approverName')}
 });}
 async function handleSubmit(form){
+ if(form.id==='recommend-form'){
+  const c={occasion:inputVal(form,'occasion'),customOccasion:inputVal(form,'customOccasion').trim(),city:inputVal(form,'city').trim()||'Kerpen',weatherMode:inputVal(form,'weatherMode'),manualTemperature:inputVal(form,'manualTemperature'),when:inputVal(form,'when'),includeOrdered:form.elements.namedItem('includeOrdered')?.checked===true,approvedOnly:form.elements.namedItem('approvedOnly')?.checked===true};
+  const manual=c.manualTemperature===''?null:Number(c.manualTemperature);
+  if(manual!==null&&(!Number.isFinite(manual)||manual < -60||manual>60))throw new Error('Die manuelle Temperatur muss zwischen -60 und 60 °C liegen.');
+  const when=c.when?new Date(c.when):new Date();
+  if(!Number.isFinite(when.getTime()))throw new Error('Ungültiger Zeitpunkt.');
+  recommendationContext=c;
+  recommendationWeather=null;recommendationMessage='';
+  let temp=null,latitude=50.87;
+  if(c.weatherMode==='manual'){
+   temp=manual;recommendationMessage=temp===null?'Keine Temperatur eingegeben: Wetter wird neutral gewertet.':`Manuelle Temperatur: ${temp} °C`;
+  } else if(c.weatherMode==='auto'){
+   try {
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),8500);
+    let w;
+    try {w=await weatherAt(c.city,{when,signal:controller.signal});}
+    finally {clearTimeout(timeout);}
+    recommendationWeather=w;latitude=w.latitude;
+    temp=Number.isFinite(w.feelsLike)?w.feelsLike:w.temperature;
+    recommendationMessage=`Wetterheuristik nutzt ${temp} °C als gefühlte Temperatur. Luftfeuchte und Niederschlag sind sichtbar, aber noch nicht Teil des vorläufigen Scores.`;
+   } catch(error) {
+    temp=manual;recommendationMessage=manual!==null?`Wetter nicht abrufbar (${error.message}). Manuell eingegebene ${manual} °C verwendet.`:`Wetter nicht abrufbar (${error.message}). Wetterfaktor neutral; Empfehlung funktioniert auch offline.`;
+   }
+  } else recommendationMessage='Wetter bewusst nicht berücksichtigt (neutraler Wetterfaktor).';
+  const profile=current();
+  recommendationResults=recommend({...cache,profile,occasion:c.customOccasion?'sonstiges':c.occasion,customOccasion:c.customOccasion,temperature:temp,when,latitude,includeOrdered:c.includeOrdered,approvedOnly:c.approvedOnly});
+  await refresh();announce('Bis zu drei persönliche Duftempfehlungen berechnet.');return;
+ }
  if(form.id==='catalog-form'){
   const all=await getAll('catalog');const old=editCatalogId?all.find(x=>x.id===editCatalogId):null;
   const proposal={...(old||{}),id:old?.id||newId('scent'),brand:inputVal(form,'brand'),name:inputVal(form,'name'),concentration:inputVal(form,'concentration'),collection:inputVal(form,'collection'),notes:words(inputVal(form,'notes')),tags:words(inputVal(form,'tags')),source:inputVal(form,'source'),occasions:old?.occasions||[],seasons:old?.seasons||[]};
@@ -138,7 +200,7 @@ view.addEventListener('change',e=>{
   if(input){input.hidden=e.target.value==='none';const name=input.querySelector('input');name.required=e.target.value==='named';}
  }
 });
-profileSelector.addEventListener('change',async e=>{activeProfileId=e.target.value;editTestId=null;await refresh();messages.innerHTML='';});
+profileSelector.addEventListener('change',async e=>{activeProfileId=e.target.value;editTestId=null;recommendationResults=null;recommendationWeather=null;await refresh();messages.innerHTML='';});
 $('.tabs').addEventListener('click',async e=>{const button=e.target.closest('button[data-tab]');if(!button)return;tab=button.dataset.tab;editCatalogId=null;editTestId=null;for(const b of $('.tabs').querySelectorAll('button'))b.classList.toggle('active',b===button);await refresh();messages.innerHTML='';});
 async function main(){
  try{

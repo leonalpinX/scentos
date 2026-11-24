@@ -1,5 +1,5 @@
 // ScentOS Beta 1.0: pure domain transformations and validation; no DOM/IndexedDB here.
-export const VERSION = '0.1.2-delivery-and-test';
+export const VERSION = '0.2.0-recommendation-preview';
 export const STORES = ['catalog','profiles','collections','approvals','tests','wearLogs','settings'];
 export const APPROVAL_STATES = { pending: null, approved: true, rejected: false };
 export const COLLECTION_STATES = ['vorhanden','bestellt','wunschliste'];

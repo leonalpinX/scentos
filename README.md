@@ -1,20 +1,28 @@
-# ScentOS 0.1.2 | GitHub Pages Testversion
+# ScentOS v0.2.0 – Empfehlungsvorschau für Beta 1.0
 
-Dies ist ein **öffentlicher, bereinigter statischer Veröffentlichungsstand**, **nicht** die vollständig abgenommene Beta 1.0.
+GitHub-Pages-PWA mit **erklärbaren Top-3-Empfehlungen** aus der persönlichen Sammlung. Bisherige lokale IndexedDB-Daten werden weder gelöscht noch neu angelegt; das Datenbankschema ist unverändert.
 
-## Veröffentlichung
+## Neue Funktionen innerhalb des vereinbarten Beta-Umfangs
+- Anlass manuell wählen, inklusive Freitext (gewinnt vor automatisch erkanntem Anlass).
+- Tageszeit automatisch aus Gerätezeit, optional geplanten Zeitpunkt wählen.
+- Open-Meteo-Wetter anhand **eines eingegebenen Orts ohne GPS** automatisch abrufen oder Temperatur manuell angeben, auch offline. Keine Wetterwerte werden als dauerhaft aktuell gespeichert.
+- Bis zu drei Düfte: nur **vorhanden**, optional bestellte Proben; Wunschliste nie als tragbare Empfehlung. Optionaler Filter nur mit bestätigtem Approval.
+- Unbewertete Düfte werden neutral gewertet, nie als abgelehnt. Profil-/Bewertungsdaten eines anderen Profils bleiben außen vor.
+- Erklärung je Empfehlung und transparente Faktorbeiträge, von einem kleinen **vorläufigen Heuristik-Score (0–100)**.
+- Der bestehende JSON-Export/Import, Duftsammel- und Testablauf funktioniert weiterhin.
 
-1. Auf GitHub ein neues **öffentliches** Repository `scentos` erstellen (ohne automatisch generierte README oder Gitignore).
-2. **Alle Dateien und den `assets`-Ordner aus diesem entpackten Verzeichnis** direkt ins Wurzelverzeichnis des Repositories hochladen und committen; die ZIP-Datei selbst nicht hochladen.
-3. In Repository-**Settings > Pages** unter **Build and deployment** die Quelle **Deploy from a branch** und danach `main` sowie `/(root)` wählen, **Save**.
-4. Wenn GitHub die Bereitstellung bestätigt, die unter Pages angezeigte URL öffnen.
+## Vorläufiges Modell – K04/K05 noch nicht fachlich beschlossen
+Die v0.2-Gewichte **Anlass 35, Wetter 25, Tageszeit 15, eigene Bewertung 15, Jahreszeit 10 %** werden proportional auf zusammen **95 %** reduziert. Die vereinbarten fünf persönlichen Eigenschaften erhalten **zusammen maximal 5 %**. Nur direkte Übereinstimmung einer Eigenschaft mit einem Katalog-Tag oder einer Duftnote wirkt positiv; **alle nicht zuordenbaren persönlichen Merkmale neutral (0,5)**. Es werden keine psychologischen Eigenschaften aus Duftnoten erraten.
 
-**Hinweis zur Datensicherheit:** GitHub-Pages-Seiten sind öffentlich erreichbar. Daher enthält dieses Paket **ausschließlich öffentliche Duftstammdaten** und ein generisches leeres Profil `Mein Profil`. Es enthält **keine** privaten Sammlungen, Approver-Namen, Bewertungen oder Testergebnisse. Eingaben im Browser bleiben in dessen **lokaler IndexedDB**, ohne Login und ohne Gerätesynchronisierung. Auf gemeinsam genutzten Geräten sind diese Daten nicht passwortgeschützt. Browserdaten können beim Löschen verloren gehen; regelmäßiger JSON-Export ist wichtig.
+Anlass-Tag-Aliase, Temperatureignung und Tageszeit sind bewusst **heuristisch**; fehlende Metadaten und Wetter bei Verbindungsproblemen zählen neutral. Der angezeigte Score ist kein objektives Gütesiegel. Nicht quantifizierte Duftbewertungen oder Approval-Kommentare werden nicht automatisch in eine Punktzahl übersetzt.
 
-Persönliche Sammlungen, Approvals und Dufttests dürfen **niemals in das öffentliche Repository hochgeladen werden**. Individuelle Sicherungen lassen sich ausschließlich im eigenen Browser im Bereich **Daten sichern > Fehlende Einträge importieren** einlesen. Danach im Profil-Auswahlmenü auf das gewünschte persönliche Profil wechseln.
+Wetterquelle: [Open-Meteo](https://open-meteo.com/). Der reine Ortsname wird an die Geocoding-API übertragen, kein GPS. Manuelles Wetter bleibt bei Offline-Nutzung möglich. Niederschlag/Luftfeuchte werden derzeit nicht numerisch gewichtet.
 
-## Abnahmestand
+**Noch nicht implementiert:** Google-Calendar-OAuth und Veranstaltungsklassifizierung, voll ausgearbeitete gegenseitige Freigaben, bestätigte Tragehistorie. Kein Login, keine Geräte-Synchronisierung.
 
-Die Modelltests und die isolierten Chromium-UI-Tests der Ausgangsversion waren erfolgreich. Eine vollständige Abnahme von GitHub-Pages-Hosting, echter IndexedDB-Persistenz nach Neustart, Service Worker, Offline-Betrieb und PWA-Installation steht noch aus.
+## Sicherheit, Deployment, Tests
+Publiziere ausschließlich die Dateien dieses Ordners im öffentlichen GitHub-Repository. **Nie** die persönliche ScentOS-JSON-Datensicherung oder Testdaten in GitHub hochladen.
 
-Einschränkungen: keine Empfehlungen, kein Wetter/Google Calendar, keine gegenseitig überprüfte Approval-Freigabe und keine Synchronisierung. Nur eine lokale Datenmodell-Testversion.
+GitHub Pages: `Settings > Pages > Deploy from a branch > main > /(root)`; Änderungen am Branch lösen eine neue Bereitstellung aus.
+
+Lokal: `python -m http.server 8080`, dann `http://localhost:8080`. Tests: `node --test tests/*.test.mjs`. Nach Deployment die installierte App **vollständig schließen und neu öffnen**, gegebenenfalls das PWA-Menü neu laden und unter „Empfehlungen“ die neue Ansicht prüfen. Kein Löschen von Website-Daten oder Neuinstallieren nötig.
